@@ -14,6 +14,7 @@ int main() {
   replacer.Replace(src, output, options);
 
   cv::imwrite("detected.png", output.vis_landmarks);
+  cv::imwrite("result.png", output.result);
 
   return 0;
 }
