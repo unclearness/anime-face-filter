@@ -1,0 +1,6 @@
+[submodule "third_party/dlib"]
+	path = third_party/dlib
+	url = https://github.com/davisking/dlib.git
+[submodule "third_party/dlib-models"]
+	path = third_party/dlib-models
+	url = https://github.com/davisking/dlib-models.git
