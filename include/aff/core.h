@@ -14,6 +14,14 @@ struct Options {
   std::string debug_dir = "";
 };
 
+struct Output {
+  cv::Mat3b result;
+  
+  cv::Rect face_bb;
+  std::vector<cv::Point2f> landmarks;
+  cv::Mat3b vis_landmarks;
+};
+
 class AnimeFaceReplacerImpl;
 
 class AnimeFaceReplacer {
@@ -24,7 +32,7 @@ class AnimeFaceReplacer {
   AnimeFaceReplacer();
   ~AnimeFaceReplacer();
   bool Init(Options options);
-  bool Replace(const cv::Mat3b& src, cv::Mat3b& dst, const Options& options);
+  bool Replace(const cv::Mat3b& src, Output& output, const Options& options);
 };
 
 }  // namespace aff
