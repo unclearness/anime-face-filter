@@ -1,16 +1,13 @@
 
+#include <fstream>
 #include <vector>
 
 #include "aff/core.h"
+#include "dlib.h"
 
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/shape.hpp"
-
-#include "dlib/image_processing.h"
-#include "dlib/image_processing/frontal_face_detector.h"
-#include "dlib/image_processing/render_face_detections.h"
-#include "dlib/opencv.h"
 
 namespace aff {
 
@@ -27,58 +24,6 @@ struct Asset {
 }  // namespace aff
 
 namespace {
-
-int DLIB_CHIN[17] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-int DLIB_R_EYEBLOW[5] = {17, 18, 19, 20, 21};
-int DLIB_L_EYEBLOW[5] = {22, 23, 24, 25, 26};
-int DLIB_OUTER[27] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13,
-                      14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26};
-int DLIB_NOSE_UPPER[4] = {27, 28, 29, 30};
-int DLIB_NOSE_LOWER[5] = {31, 32, 33, 34, 35};
-int DLIB_R_EYE[6] = {36, 37, 38, 39, 40, 41};
-int DLIB_L_EYE[6] = {42, 43, 44, 45, 46, 47};
-int DLIB_MOUSE_OUTER_NUM = 12;
-int DLIB_MOUSE_OUTER[12] = {48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59};
-int DLIB_MOUSE_INNER[8] = {60, 61, 62, 63, 64, 65, 66, 67};
-
-bool DetectFace(dlib::frontal_face_detector& detector,
-                dlib::shape_predictor& pose_model, cv::Mat3b& srcdst,
-                aff::Output& output) {
-  dlib::cv_image<dlib::bgr_pixel> cimg(srcdst);
-
-  // Detect faces
-  std::vector<dlib::rectangle> org_faces = detector(cimg);
-
-  if (org_faces.empty()) {
-    return false;
-  }
-
-  unsigned int max_area = 0;
-  std::vector<dlib::rectangle> faces(1);
-  for (const auto& f : org_faces) {
-    if (max_area < f.area()) {
-      max_area = f.area();
-      faces[0] = f;
-    }
-  }
-
-  // Find the pose of each face.
-  std::vector<dlib::full_object_detection> shapes;
-  for (unsigned long i = 0; i < faces.size(); ++i) {
-    shapes.push_back(pose_model(cimg, faces[i]));
-  }
-
-  output.face_bb =
-      cv::Rect(shapes[0].get_rect().left(), shapes[0].get_rect().top(),
-               shapes[0].get_rect().width(), shapes[0].get_rect().height());
-  output.landmarks.clear();
-  for (unsigned int i = 0; i < shapes[0].num_parts(); i++) {
-    const auto& part = shapes[0].part(i);
-    output.landmarks.push_back(cv::Point2f(part.x(), part.y()));
-  }
-
-  return true;
-}
 
 bool DrawDetectedFace(const cv::Rect& face_bb,
                       const std::vector<cv::Point>& landmarks,
@@ -173,6 +118,7 @@ bool ReplaceArea(
   //    warped_mask.at<unsigned char>(pos[1], pos[0]) = 255;
   //  }
   //});
+
   std::vector<cv::Mat> planes;
   cv::split(warped_asset, planes);
   warped_mask = (planes[3] == 255);
@@ -235,8 +181,7 @@ namespace aff {
 
 class AnimeFaceReplacerImpl {
  private:
-  dlib::frontal_face_detector detector;
-  dlib::shape_predictor pose_model;
+  DlibFaceDetector dlib_face_detector;
 
   Asset mouse;
 
@@ -305,10 +250,9 @@ bool AnimeFaceReplacerImpl::ReplaceLandmarks(
 }
 
 bool AnimeFaceReplacerImpl::Init(const Options& options) {
-  detector = dlib::get_frontal_face_detector();
-  try {
-    dlib::deserialize(options.dlib_model_path) >> pose_model;
-  } catch (dlib::serialization_error e) {
+  options_ = options;
+
+  if (!dlib_face_detector.Init(options.dlib_model_path)) {
     return false;
   }
 
@@ -320,7 +264,8 @@ bool AnimeFaceReplacerImpl::Replace(const cv::Mat3b& src, Output& output,
   cv::Mat3b tmp = src.clone();
 
   // Face and landmark detection
-  DetectFace(detector, pose_model, tmp, output);
+  dlib_face_detector.Detect(tmp, output.face_bb, output.landmarks);
+
   output.vis_landmarks = src.clone();
   DrawDetectedFace(output.face_bb, output.landmarks, output.vis_landmarks);
 
