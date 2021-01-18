@@ -7,6 +7,7 @@
 
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
+#include "opencv2/photo.hpp"
 #include "opencv2/shape.hpp"
 
 namespace aff {
@@ -37,6 +38,27 @@ bool DrawDetectedFace(const cv::Rect& face_bb,
 
   return true;
 }
+
+bool ReduceColor(cv::Mat3b& srcdst, unsigned char reduce_factor) {
+  unsigned char reduce = 256 / reduce_factor;
+  for (int j = 0; j < srcdst.rows; j++) {
+    for (int i = 0; i < srcdst.cols; i++) {
+      auto& p = srcdst.at<cv::Vec3b>(j, i);
+      for (int k = 0; k < 3; k++) {
+        p[k] = cv::saturate_cast<unsigned char>(p[k] / reduce *
+                                                reduce);  // +num_color / 2);
+      }
+    }
+  }
+
+  return true;
+}
+
+// Enhance contour
+bool EnhanceContour() { return true; }
+
+// Uniform face color
+bool UniformFaceColor() { return true; }
 
 // âÊëúÇâÊëúÇ…ì\ÇËïtÇØÇÈä÷êî
 void paste(cv::Mat dst, cv::Mat src, int x, int y, int width, int height) {
@@ -144,7 +166,12 @@ bool ReplaceArea(
 
   cv::imwrite("final_mask.png", final_mask);
 
-  warped_asset_3b.copyTo(replaced, final_mask);
+  // warped_asset_3b.copyTo(replaced, final_mask);
+  cv::Moments mu = cv::moments(final_mask, true);
+  cv::Point object_p(mu.m10 / mu.m00, mu.m01 / mu.m00);
+  // printf("%d, %d\n", object_p.x, object_p.y);
+  cv::seamlessClone(warped_asset_3b, replaced.clone(), final_mask, object_p,
+                    replaced, cv::NORMAL_CLONE);
 
   return true;
 }
@@ -270,6 +297,7 @@ bool AnimeFaceReplacerImpl::Replace(const cv::Mat3b& src, Output& output,
   DrawDetectedFace(output.face_bb, output.landmarks, output.vis_landmarks);
 
   // Reduce color
+  // ReduceColor(tmp, 8);
 
   // Enhance contour
 
@@ -277,6 +305,10 @@ bool AnimeFaceReplacerImpl::Replace(const cv::Mat3b& src, Output& output,
 
   // Replace landmarks
   ReplaceLandmarks(output.landmarks, tmp);
+
+  // Blur
+  // cv::GaussianBlur(tmp, tmp, cv::Size(9, 9), 1.0);
+
   output.result = tmp;
 
   return true;
