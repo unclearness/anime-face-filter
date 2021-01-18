@@ -3,14 +3,28 @@
 
 #include "aff/core.h"
 
-#include "opencv2/shape.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
+#include "opencv2/shape.hpp"
 
 #include "dlib/image_processing.h"
 #include "dlib/image_processing/frontal_face_detector.h"
 #include "dlib/image_processing/render_face_detections.h"
 #include "dlib/opencv.h"
+
+namespace aff {
+
+struct Asset {
+  std::string image_path;
+  std::string points_path;
+  std::string name;
+
+  cv::Mat4b image;
+
+  std::vector<int> dlib_indices;
+  std::vector<cv::Point> points;
+};
+}  // namespace aff
 
 namespace {
 
@@ -109,7 +123,6 @@ bool ReplaceArea(
     const std::vector<T>& src_points, /* asset points */
     const std::vector<T>& dst_points, /* closed contours in image */
     const cv::Mat4b& asset, cv::Mat3b& replaced) {
-
   // scale asset to bb of detected points
   int dst_min_x = 1000000;
   int dst_min_y = 1000000;
@@ -125,12 +138,11 @@ bool ReplaceArea(
     dst_min_y = std::min(dst_min_y, int(d.y));
     dst_max_x = std::max(dst_max_x, int(d.x));
     dst_max_y = std::max(dst_max_y, int(d.y));
-
   }
 
   cv::Size dst_size(dst_max_x - dst_min_x, dst_max_y - dst_min_y);
-  //cv::Mat4b tmp = asset;
-  //cv::resize(asset, tmp, dst_size);
+  // cv::Mat4b tmp = asset;
+  // cv::resize(asset, tmp, dst_size);
   cv::Mat4b scaled_asset = cv::Mat4b::zeros(replaced.size());
   paste(scaled_asset, asset, dst_min_x, dst_min_y, dst_max_x - dst_min_x,
         dst_max_y - dst_min_y);
@@ -139,7 +151,8 @@ bool ReplaceArea(
   float x_ratio = dst_size.width / static_cast<float>(asset.cols);
   float y_ratio = dst_size.height / static_cast<float>(asset.rows);
   for (const auto& s : src_points) {
-    f_src_points.push_back(cv::Point2f(s.x * x_ratio + dst_min_x, s.y * y_ratio + dst_min_y));
+    f_src_points.push_back(
+        cv::Point2f(s.x * x_ratio + dst_min_x, s.y * y_ratio + dst_min_y));
   }
 
   auto tps = cv::createThinPlateSplineShapeTransformer();
@@ -148,21 +161,21 @@ bool ReplaceArea(
   for (int i = 0; i < static_cast<int>(src_points.size()); i++) {
     matches.push_back(cv::DMatch(i, i, 0.0f));
   }
-  //tps->estimateTransformation(f_src_points, f_dst_points, matches);
+  // tps->estimateTransformation(f_src_points, f_dst_points, matches);
   tps->estimateTransformation(f_dst_points, f_src_points, matches);
 
   cv::Mat4b warped_asset = scaled_asset.clone();
   tps->warpImage(scaled_asset, warped_asset);
 
   cv::Mat1b warped_mask = cv::Mat1b::zeros(replaced.size());
-  //warped_asset.forEach<cv::Vec4b>([&](cv::Vec4b& p, int* pos) -> void {
+  // warped_asset.forEach<cv::Vec4b>([&](cv::Vec4b& p, int* pos) -> void {
   //  if (p[3] == 0) {
   //    warped_mask.at<unsigned char>(pos[1], pos[0]) = 255;
   //  }
   //});
   std::vector<cv::Mat> planes;
   cv::split(warped_asset, planes);
-  warped_mask = planes[3];
+  warped_mask = (planes[3] == 255);
 
   cv::imwrite("warped_mask.png", warped_mask);
 
@@ -170,15 +183,22 @@ bool ReplaceArea(
 
   cv::Mat1b dst_mask = cv::Mat1b::zeros(replaced.size());
 
-  std::vector<std::vector<cv::Point>> contours(1);
-  contours[0] = dst_points;
-  cv::drawContours(dst_mask, contours, 0, 255, -1);
-
+  {
+    std::vector<std::vector<cv::Point>> contours(1);
+    contours[0] = dst_points;
+    cv::drawContours(dst_mask, contours, 0, 255, -1);
+  }
   cv::imwrite("dst_mask.png", dst_mask);
 
   cv::Mat3b warped_asset_3b;
+
   cv::cvtColor(warped_asset, warped_asset_3b, cv::COLOR_BGRA2BGR);
-  warped_asset_3b.copyTo(replaced, dst_mask);
+
+  cv::Mat1b final_mask = dst_mask & warped_mask;
+
+  cv::imwrite("final_mask.png", final_mask);
+
+  warped_asset_3b.copyTo(replaced, final_mask);
 
   return true;
 }
@@ -193,20 +213,25 @@ std::vector<std::string> Split(const std::string& input, char delimiter) {
   return result;
 }
 
+bool DumpAsset(const std::string& debug_dir, const aff::Asset& asset) {
+  cv::Mat4b debug_image = asset.image.clone();
+
+  for (auto i = 0; i < asset.dlib_indices.size(); i++) {
+    const auto& dlib_index = asset.dlib_indices[i];
+    const auto& point = asset.points[i];
+    cv::circle(debug_image, point, 3, cv::Scalar(0, 0, 255, 255), -1);
+    cv::putText(debug_image, std::to_string(dlib_index), point,
+                cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 0, 255), 2);
+  }
+
+  cv::imwrite(debug_dir + asset.name + ".png", debug_image);
+
+  return true;
+}
+
 }  // namespace
 
 namespace aff {
-
-struct Asset {
-  std::string image_path;
-  std::string points_path;
-  std::string name;
-
-  cv::Mat4b image;
-
-  std::vector<int> dlib_indices;
-  std::vector<cv::Point> points;
-};
 
 class AnimeFaceReplacerImpl {
  private:
@@ -215,7 +240,10 @@ class AnimeFaceReplacerImpl {
 
   Asset mouse;
 
+  Options options_;
+
   bool LoadAssets(const Options& options);
+  bool DumpAssets(const std::string& debug_dir);
   bool ReplaceLandmarks(const std::vector<cv::Point>& landmarks,
                         cv::Mat3b& replaced);
 
@@ -224,7 +252,15 @@ class AnimeFaceReplacerImpl {
   bool Replace(const cv::Mat3b& src, Output& output, const Options& options);
 };
 
+bool AnimeFaceReplacerImpl::DumpAssets(const std::string& debug_dir) {
+  DumpAsset(debug_dir, mouse);
+
+  return true;
+}
+
 bool AnimeFaceReplacerImpl::LoadAssets(const Options& options) {
+  options_ = options;
+
   // load mouse
   mouse.image_path = options.asset_dir + "/mouse.png";
   mouse.name = "mouse";
@@ -257,6 +293,8 @@ bool AnimeFaceReplacerImpl::LoadAssets(const Options& options) {
 
 bool AnimeFaceReplacerImpl::ReplaceLandmarks(
     const std::vector<cv::Point>& landmarks, cv::Mat3b& replaced) {
+  DumpAssets(options_.debug_dir);
+
   std::vector<cv::Point> mouse_points;
   for (int i = 0; i < DLIB_MOUSE_OUTER_NUM; i++) {
     mouse_points.push_back(landmarks[DLIB_MOUSE_OUTER[i]]);
