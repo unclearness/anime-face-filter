@@ -1,9 +1,12 @@
 # **aff**: Anime Face Filter
 **aff** adds anime-like effects to input portlait image/video. Fully implemented with traditional image processing. No Deep Learning.
 
-<img src="https://raw.githubusercontent.com/wiki/unclearness/anime-face-filter/images/lena.jpg" width="120">
-<img src="https://raw.githubusercontent.com/wiki/unclearness/anime-face-filter/images/lena_result.png" width="120">
 
+
+
+|input|output|
+|---|---|
+|<img src="https://raw.githubusercontent.com/wiki/unclearness/anime-face-filter/images/lena.jpg" width="180">|<img src="https://raw.githubusercontent.com/wiki/unclearness/anime-face-filter/images/lena_result.png" width="180">|
 
 <img src="https://raw.githubusercontent.com/wiki/unclearness/anime-face-filter/images/trump_result.gif" width="640">
 
