@@ -1,4 +1,9 @@
 
+/*
+ * Copyright (C) 2021, unclearness
+ * All rights reserved.
+ */
+
 #include <vector>
 
 #include "src/dlib.h"

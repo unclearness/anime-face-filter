@@ -1,3 +1,7 @@
+/*
+ * Copyright (C) 2021, unclearness
+ * All rights reserved.
+ */
 
 #include <fstream>
 #include <iostream>
@@ -101,13 +105,12 @@ std::vector<cv::Point> ExpandFacePart(
   auto centroid = std::accumulate(landmarks_v.begin(), landmarks_v.end(),
                                   cv::Vec2f(0.f, 0.f)) /
                   static_cast<int>(landmarks.size());
- 
+
   // Expand distance from centroid
   std::vector<cv::Point> expanded_landmarks;
   std::transform(landmarks_v.begin(), landmarks_v.end(),
                  std::back_inserter(expanded_landmarks),
                  [&](const auto& org_v) {
-
                    auto direc = org_v - centroid;
                    if (std::abs(direc[0]) < 0.01f) {
                      direc[0] = 0.01f ? direc[0] > 0 : -0.01f;
@@ -491,7 +494,9 @@ bool AnimeFaceReplacerImpl::Replace(const cv::Mat3b& src, Output& output,
   cv::Mat3b tmp = src.clone();
 
   // Face and landmark detection
-  dlib_face_detector.Detect(tmp, output.face_bb, output.landmarks);
+  if (!dlib_face_detector.Detect(tmp, output.face_bb, output.landmarks)) {
+    return false;
+  }
 
   if (!options.debug_dir.empty()) {
     output.vis_landmarks = src.clone();
@@ -502,7 +507,7 @@ bool AnimeFaceReplacerImpl::Replace(const cv::Mat3b& src, Output& output,
   // ReduceColor(tmp, 8);
 
   // cv::stylization(tmp, tmp);
-  // cv::boxFilter(tmp, tmp, -1, cv::Size(9, 9));
+  // cv::boxFilter(tmp, tmp, -1, cv::Size(3, 3));
 
   ReduceColorOnHsV(tmp);
 
@@ -527,7 +532,7 @@ bool AnimeFaceReplacerImpl::Replace(const cv::Mat3b& src, Output& output,
 
   // cv::boxFilter(tmp, tmp, -1, cv::Size(3, 3));
 
-  cv::edgePreservingFilter(tmp, tmp);
+  cv::edgePreservingFilter(tmp, tmp, cv::NORMCONV_FILTER);
 
   output.result = tmp;
 

@@ -85,8 +85,6 @@ add_library(${Aff_LIB}
   src/dlib.h
 )
 
-#set(Aff_LIBS ${Aff_LIBS} ${Aff_LIB)
-#set(Aff_INCLUDE_DIRS ${Aff_INCLUDE_DIRS} ${Ugu_INCLUDE_DIRS})
 
 set_with_parent(Aff_LIBS "${Aff_LIBS}" "Aff_LIBS")
 set_with_parent(Aff_INCLUDE_DIRS "${Aff_INCLUDE_DIRS}" "Aff_INCLUDE_DIRS")
@@ -103,10 +101,13 @@ if (NOT hasParent)
   target_link_libraries(demo
     ${Aff_LIBS}
     )
+  add_executable(webcam app/webcam.cpp)
+  target_include_directories(webcam PRIVATE ${Aff_INCLUDE_DIRS})
+  target_link_libraries(webcam
+    ${Aff_LIBS}
+    )
 endif()
 
 if (WIN32)
   set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT demo)
-  # suppress C2338 for eigen
-  # add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
 endif()

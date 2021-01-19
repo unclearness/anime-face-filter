@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2021, unclearness
+ * All rights reserved.
+ */
+
 #include <iostream>
 
 #include "aff/core.h"

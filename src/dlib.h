@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2021, unclearness
+ * All rights reserved.
+ */
+
+#pragma once
 
 #include <memory>
 #include <vector>
