@@ -10,8 +10,14 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/opencv.hpp"
 
+//#define USE_VIDEO
+
 int main() {
+#ifdef USE_VIDEO
+  cv::VideoCapture cap("../data/test/trump.mp4");
+#else
   cv::VideoCapture cap(0);
+#endif
 
   if (!cap.isOpened()) {
     return -1;
@@ -28,9 +34,11 @@ int main() {
   int w = 240;
 
   cv::Mat frame, latest_result;
-  latest_result = cv::Mat3b::zeros(240, 120);
+  latest_result = cv::Mat3b::zeros(240, 240);
+
   while (cap.read(frame)) {
     cv::imshow("src", frame);
+
     auto org_size = frame.size();
     int h = static_cast<int>(w * static_cast<float>(frame.rows) /
                              static_cast<float>(frame.cols));
