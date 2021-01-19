@@ -21,8 +21,10 @@
 
 
 # Build
+- Install OpenCV 4.x or higher
 - `git submodule update --init --recursive`
   - To pull dependencies registered as git submodule. 
+- Extract `third_party/dlib-models/shape_predictor_68_face_landmarks.dat.bz2` to the same directory. 
 - Use CMake with `CMakeLists.txt`.
 
 
