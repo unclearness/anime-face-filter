@@ -1,7 +1,7 @@
 
 #include <vector>
 
-#include "dlib.h"
+#include "src/dlib.h"
 
 #include "dlib/image_processing.h"
 #include "dlib/image_processing/frontal_face_detector.h"

@@ -78,6 +78,7 @@ set(Aff_LIB ${PROJECT_NAME})
 add_library(${Aff_LIB}
   STATIC
   include/aff/core.h
+  include/aff/timer.h
 
   src/core.cpp
   src/dlib.cpp
