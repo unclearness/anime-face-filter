@@ -14,6 +14,7 @@ static inline int DLIB_OUTER[27] = {0,  1,  2,  3,  4,  5,  6,  7,  8,
                                     18, 19, 20, 21, 22, 23, 24, 25, 26};
 static inline int DLIB_NOSE_UPPER[4] = {27, 28, 29, 30};
 static inline int DLIB_NOSE_LOWER[5] = {31, 32, 33, 34, 35};
+static inline int DLIB_EYE_NUM = 6;
 static inline int DLIB_R_EYE[6] = {36, 37, 38, 39, 40, 41};
 static inline int DLIB_L_EYE[6] = {42, 43, 44, 45, 46, 47};
 static inline int DLIB_MOUSE_OUTER_NUM = 12;

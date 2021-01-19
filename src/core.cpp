@@ -1,5 +1,6 @@
 
 #include <fstream>
+#include <numeric>
 #include <vector>
 
 #include "aff/core.h"
@@ -50,6 +51,92 @@ bool ReduceColor(cv::Mat3b& srcdst, unsigned char reduce_factor) {
       }
     }
   }
+
+  return true;
+}
+
+std::vector<cv::Point> ExpandFacePart(
+    const std::vector<cv::Point>& landmarks,
+    cv::Vec2f xvec = cv::Vec2f(1.0f, 0.0f), float xratio = 1.3f,
+    cv::Vec2f yvec = cv::Vec2f(0.0f, 1.0f), float yratio = 1.3f, int min_x = -1,
+    int max_x = std::numeric_limits<int>::max(), int min_y = -1,
+    int max_y = std::numeric_limits<int>::max()) {
+  // Get centroid
+  auto centroid =
+      std::accumulate(landmarks.begin(), landmarks.end(), cv::Point(0, 0)) /
+      static_cast<int>(landmarks.size());
+  auto centroid_v = cv::Vec2f(centroid.x, centroid.y);
+
+  // Expand distance from centroid
+  std::vector<cv::Point> expanded_landmarks;
+  std::transform(landmarks.begin(), landmarks.end(),
+                 std::back_inserter(expanded_landmarks),
+                 [&](const auto& org_p) {
+                   auto direc_p = org_p - centroid;
+                   if (direc_p.x == 0 && direc_p.y == 0) {
+                        return org_p;
+                   }
+                   auto direc = cv::Vec2f(direc_p.x, direc_p.y);
+                   auto dist = std::max(cv::norm(direc),1.0);
+                   auto normed_direc = cv::normalize(direc);
+                   auto x_len = xvec.dot(normed_direc) * dist * xratio;
+                   auto y_len = yvec.dot(normed_direc) * dist * yratio;
+                   cv::Point p = centroid_v + xvec * x_len + yvec * y_len;
+                   p.x = std::clamp(p.x, min_x, max_x);
+                   p.y = std::clamp(p.y, min_y, max_y);
+                   return p;
+                 });
+  return expanded_landmarks;
+}
+
+std::vector<cv::Point> GetFacePartLandmarks(
+    const std::vector<cv::Point>& all_landmarks, int part_num,
+    int* part_indices) {
+  std::vector<cv::Point> part_landmarks;
+  for (int i = 0; i < part_num; i++) {
+    part_landmarks.push_back(all_landmarks[part_indices[i]]);
+  }
+  return part_landmarks;
+}
+
+bool ReplaceFacePartLandmarks(std::vector<cv::Point>& all_landmarks,
+                              int part_num, int* part_indices,
+                              const std::vector<cv::Point>& part_landmarks) {
+  for (int i = 0; i < part_num; i++) {
+    all_landmarks[part_indices[i]] = part_landmarks[i];
+  }
+  return true;
+}
+
+std::vector<cv::Point> GetMouseLandmarks(
+    const std::vector<cv::Point>& all_landmarks) {
+  return GetFacePartLandmarks(all_landmarks, aff::DLIB_MOUSE_OUTER_NUM,
+                              aff::DLIB_MOUSE_OUTER);
+}
+
+std::vector<cv::Point> GetREyeLandmarks(
+    const std::vector<cv::Point>& all_landmarks) {
+  return GetFacePartLandmarks(all_landmarks, aff::DLIB_EYE_NUM,
+                              aff::DLIB_R_EYE);
+}
+
+bool ExpandMouse(std::vector<cv::Point>& landmarks) {
+  auto expanded = ExpandFacePart(GetMouseLandmarks(landmarks));
+  ReplaceFacePartLandmarks(landmarks, aff::DLIB_MOUSE_OUTER_NUM,
+                           aff::DLIB_MOUSE_OUTER, expanded);
+  return true;
+}
+
+bool ExpandREye(std::vector<cv::Point>& landmarks) {
+  cv::Point2f xdiff = landmarks[36] - landmarks[39];
+  cv::Vec2f xvec = cv::normalize(cv::Vec2f(xdiff.x, xdiff.y));
+
+  cv::Vec2f yvec(-xvec[1], xvec[0]);
+
+  auto expanded =
+      ExpandFacePart(GetREyeLandmarks(landmarks), xvec, 1.3f, yvec, 3.0f);
+  ReplaceFacePartLandmarks(landmarks, aff::DLIB_EYE_NUM, aff::DLIB_R_EYE,
+                           expanded);
 
   return true;
 }
@@ -166,12 +253,15 @@ bool ReplaceArea(
 
   cv::imwrite("final_mask.png", final_mask);
 
-  // warped_asset_3b.copyTo(replaced, final_mask);
+#if 1
+  warped_asset_3b.copyTo(replaced, final_mask);
+#else
   cv::Moments mu = cv::moments(final_mask, true);
   cv::Point object_p(mu.m10 / mu.m00, mu.m01 / mu.m00);
-  // printf("%d, %d\n", object_p.x, object_p.y);
+  printf("%d, %d\n", object_p.x, object_p.y);
   cv::seamlessClone(warped_asset_3b, replaced.clone(), final_mask, object_p,
                     replaced, cv::NORMAL_CLONE);
+#endif
 
   return true;
 }
@@ -211,9 +301,14 @@ class AnimeFaceReplacerImpl {
   DlibFaceDetector dlib_face_detector;
 
   Asset mouse;
+  std::string mouse_basename = "mouse";
+  Asset r_eye_;
+  std::string reye_basename = "r_eye";
 
   Options options_;
 
+  bool LoadAsset(Asset& asset, const std::string& basename,
+                 const Options& options);
   bool LoadAssets(const Options& options);
   bool DumpAssets(const std::string& debug_dir);
   bool ReplaceLandmarks(const std::vector<cv::Point>& landmarks,
@@ -226,26 +321,24 @@ class AnimeFaceReplacerImpl {
 
 bool AnimeFaceReplacerImpl::DumpAssets(const std::string& debug_dir) {
   DumpAsset(debug_dir, mouse);
-
+  DumpAsset(debug_dir, r_eye_);
   return true;
 }
 
-bool AnimeFaceReplacerImpl::LoadAssets(const Options& options) {
-  options_ = options;
-
-  // load mouse
-  mouse.image_path = options.asset_dir + "/mouse.png";
-  mouse.name = "mouse";
-  mouse.image = cv::imread(mouse.image_path, cv::ImreadModes::IMREAD_UNCHANGED);
-  if (mouse.image.empty()) {
+bool AnimeFaceReplacerImpl::LoadAsset(Asset& asset, const std::string& basename,
+                                      const Options& options) {
+  asset.image_path = options.asset_dir + "/" + basename + ".png";
+  asset.name = basename;
+  asset.image = cv::imread(asset.image_path, cv::ImreadModes::IMREAD_UNCHANGED);
+  if (asset.image.empty()) {
     return false;
   }
 
-  mouse.points.clear();
-  mouse.dlib_indices.clear();
+  asset.points.clear();
+  asset.dlib_indices.clear();
 
-  mouse.points_path = options.asset_dir + "/mouse.txt";
-  std::ifstream ifs(mouse.points_path);
+  asset.points_path = options.asset_dir + "/" + basename + ".txt";
+  std::ifstream ifs(asset.points_path);
   std::string line;
   while (std::getline(ifs, line)) {
     std::vector<std::string> splited = Split(line, ' ');
@@ -254,11 +347,20 @@ bool AnimeFaceReplacerImpl::LoadAssets(const Options& options) {
       return false;
     }
 
-    mouse.dlib_indices.push_back(std::atoi(splited[0].c_str()));
+    asset.dlib_indices.push_back(std::atoi(splited[0].c_str()));
 
-    mouse.points.push_back(cv::Point(std::atoi(splited[1].c_str()),
+    asset.points.push_back(cv::Point(std::atoi(splited[1].c_str()),
                                      std::atoi(splited[2].c_str())));
   }
+
+  return true;
+}
+
+bool AnimeFaceReplacerImpl::LoadAssets(const Options& options) {
+  options_ = options;
+
+  LoadAsset(mouse, mouse_basename, options);
+  LoadAsset(r_eye_, reye_basename, options);
 
   return true;
 }
@@ -267,11 +369,10 @@ bool AnimeFaceReplacerImpl::ReplaceLandmarks(
     const std::vector<cv::Point>& landmarks, cv::Mat3b& replaced) {
   DumpAssets(options_.debug_dir);
 
-  std::vector<cv::Point> mouse_points;
-  for (int i = 0; i < DLIB_MOUSE_OUTER_NUM; i++) {
-    mouse_points.push_back(landmarks[DLIB_MOUSE_OUTER[i]]);
-  }
-  ReplaceArea(mouse.points, mouse_points, mouse.image, replaced);
+  ReplaceArea(mouse.points, GetMouseLandmarks(landmarks), mouse.image,
+              replaced);
+  ReplaceArea(r_eye_.points, GetREyeLandmarks(landmarks), r_eye_.image,
+              replaced);
 
   return true;
 }
@@ -295,19 +396,26 @@ bool AnimeFaceReplacerImpl::Replace(const cv::Mat3b& src, Output& output,
 
   output.vis_landmarks = src.clone();
   DrawDetectedFace(output.face_bb, output.landmarks, output.vis_landmarks);
+  cv::imwrite("detected_org.png", output.vis_landmarks);
 
   // Reduce color
-  // ReduceColor(tmp, 8);
+  ReduceColor(tmp, 8);
 
   // Enhance contour
 
   // Uniform face color
 
+  // Expand face parts
+  ExpandMouse(output.landmarks);
+  ExpandREye(output.landmarks);
+  output.vis_landmarks = src.clone();
+  DrawDetectedFace(output.face_bb, output.landmarks, output.vis_landmarks);
+
   // Replace landmarks
   ReplaceLandmarks(output.landmarks, tmp);
 
   // Blur
-  // cv::GaussianBlur(tmp, tmp, cv::Size(9, 9), 1.0);
+  // cv::GaussianBlur(tmp, tmp, cv::Size(9, 9), 3.0);
 
   output.result = tmp;
 

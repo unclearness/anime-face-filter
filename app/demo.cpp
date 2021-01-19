@@ -3,7 +3,7 @@
 #include "opencv2/imgcodecs.hpp"
 
 int main() {
-  std::string lena_path = "../data/test/lena.jpg";
+  std::string lena_path = "../data/test/trump.jpg";
 
   cv::Mat3b src = cv::imread(lena_path, cv::ImreadModes::IMREAD_COLOR);
   aff::Output output;
