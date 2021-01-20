@@ -35,7 +35,7 @@ Inspired by Anime Face Filter provided by Snapchat and TikTok.
 
 
 # Executables
-- demo.ccpp
+- demo.cpp
   - image file input demo
 - webcam.cpp
   - webcam stream and video file input demo
@@ -43,10 +43,23 @@ Inspired by Anime Face Filter provided by Snapchat and TikTok.
 # Customization
 You can customize images of mouse and eyes. See `data/asset`
 
+# Algorithm
+  - Detect face and facial landmarks
+  - Reduce and flatten color
+  - Replace face parts (eyes and mouse) with anime ones
+  - Blend replaced parts into other region
 
- # Notes
- - Current implemtation is slow.
-   - face detection
-   - cv::edgePreservingFilter
- - Severe jitter since temporal smoothing is not cosidered yet.
 
+# Problems & Possible Solutions
+ - Processing is slow (mainly, face detection and cv::edgePreservingFilter)
+   - -> Track face based on the previous frame
+   - -> Acceleration (image shrinking, implement faster filter, etc. )
+ - Severe jitter
+   - -> Consider temporal smoothing
+ - Deformation of mouse and eyes is not natural
+   - -> Try other deformation methods (polygonize and skinning?)
+ - Mouse and eyes are not fit to subject
+   - -> Extract and reflect eye and lip color
+ - More anime-like style
+   - -> Enhance contour lines and create contrasts for them
+   - -> ~~CycleGAN~~
