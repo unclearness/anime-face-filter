@@ -1,6 +1,9 @@
 # **aff**: Anime Face Filter
-**aff** adds anime-like effects to input portlait image/video. Fully implemented with traditional image processing. No Deep Learning.
+**aff** adds anime-like effects to input portlait image/video.
+Fully implemented with traditional image processing.
+No Deep Learning.
 
+Inspired by Anime Face Filter provided by Snapchat and TikTok.
 
 
 
